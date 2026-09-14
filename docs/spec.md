@@ -1,7 +1,7 @@
 # Spécification — Service "Pierre-Feuille-Ciseaux"
 
-- **Statut** : 🟡 En attente de validation (Product Owner)
-- **Version** : 0.1.0
+- **Statut** : 🟢 Approuvée (Product Owner) — cf. §9
+- **Version** : 0.2.0
 - **Auteur** : Claude (dev), sous la responsabilité de Thomas Rouch (tech lead / PO)
 
 Ce document est versionné et fait foi. Toute évolution du jeu ou de l'API
@@ -40,7 +40,7 @@ plus tard sans casser cette base (cf. §7).
 | Colonne      | Type          | Contraintes                  |
 |--------------|---------------|-------------------------------|
 | id           | UUID          | PK, généré serveur            |
-| name         | VARCHAR(50)   | NOT NULL (pas d'unicité, cf. décision D1) |
+| name         | VARCHAR(50)   | NOT NULL, **UNIQUE** (cf. décision D1) |
 | created_at   | TIMESTAMPTZ   | NOT NULL, défaut now()        |
 
 ### `games`
@@ -57,13 +57,17 @@ Les statistiques d'un joueur (`wins`, `losses`, `draws`, `games_played`)
 sont **calculées à la lecture** par agrégation sur `games` (pas de colonne
 dénormalisée à maintenir) — plus simple et sans risque d'incohérence.
 
-## 3. API — endpoints (préfixe `/rps`)
+## 3. API — endpoints (préfixe `/rps`, versionné `v1`)
+
+Tous les endpoints métier sont sous `/rps/v1/...` (cf. décision D5 : la
+version majeure de l'API apparaît dans le chemin, ce qui permettra
+d'introduire `/rps/v2/...` plus tard sans casser les clients existants).
 
 Toutes les réponses sont en JSON. Les erreurs suivent le format standard
 FastAPI `{"detail": "..."}`.
 
-### `POST /rps/register`
-Enregistre un nouveau joueur.
+### `POST /rps/v1/register`
+Enregistre un nouveau joueur. Le nom est **unique** (cf. décision D1).
 
 Requête :
 ```json
@@ -74,9 +78,10 @@ Réponses :
 ```json
 { "player_id": "uuid", "name": "Thomas", "created_at": "2026-09-14T10:00:00Z" }
 ```
+- `409 Conflict` — un joueur existe déjà avec ce `name`.
 - `422 Unprocessable Entity` — nom absent/vide/trop long.
 
-### `POST /rps/play`
+### `POST /rps/v1/play`
 Joue une manche pour un joueur existant.
 
 Requête :
@@ -97,7 +102,7 @@ Réponses :
 - `404 Not Found` — `player_id` inconnu.
 - `422 Unprocessable Entity` — `move` absent ou hors énumération.
 
-### `GET /rps/players/{player_id}`
+### `GET /rps/v1/players/{player_id}`
 Retourne le joueur et ses statistiques agrégées.
 
 - `200 OK`
@@ -111,23 +116,23 @@ Retourne le joueur et ses statistiques agrégées.
 ```
 - `404 Not Found`.
 
-### `GET /rps/players/{player_id}/games`
+### `GET /rps/v1/players/{player_id}/games`
 Historique paginé des manches d'un joueur (query params `limit` défaut 20
 max 100, `offset` défaut 0).
 
 - `200 OK`
 ```json
-{ "items": [ { "...": "cf. objet game de /rps/play" } ], "total": 12 }
+{ "items": [ { "...": "cf. objet game de /rps/v1/play" } ], "total": 12 }
 ```
 - `404 Not Found` si le joueur n'existe pas.
 
-### `GET /rps/games/{game_id}`
+### `GET /rps/v1/games/{game_id}`
 Détail d'une manche.
 
-- `200 OK` (même forme que la réponse de `/rps/play`, avec `player_id`).
+- `200 OK` (même forme que la réponse de `/rps/v1/play`, avec `player_id`).
 - `404 Not Found`.
 
-### `GET /healthz` (hors `/rps`, cf. décision D2)
+### `GET /healthz` (hors `/rps`, décision D2 validée)
 Vérification de disponibilité (liveness/readiness), sans dépendance DB pour
 la liveness. Retourne `200 OK` `{"status": "ok"}`.
 
@@ -174,9 +179,10 @@ pocorange/
 │       ├── main.py            # factory FastAPI, montage des routers
 │       ├── config.py          # Settings (pydantic-settings), Environment
 │       ├── api/                # boilerplate HTTP (FastAPI)
-│       │   ├── router.py
-│       │   ├── players.py
-│       │   ├── games.py
+│       │   ├── router.py      # monte /rps/v1 + /healthz
+│       │   ├── v1/
+│       │   │   ├── players.py
+│       │   │   └── games.py
 │       │   ├── health.py
 │       │   └── schemas.py     # modèles Pydantic requête/réponse
 │       ├── domain/             # métier pur, sans dépendance framework
@@ -228,21 +234,19 @@ générique, pas de CQRS) tant que le besoin ne l'impose pas.
   s'identifier, pas de notion de compte sécurisé).
 - Manifestes Kubernetes, Terraform, pipeline CI/CD réel.
 
-## 9. Décisions proposées à valider (PO)
+## 9. Décisions validées (PO — 2026-09-14)
 
-- **D1** — `name` du joueur n'est pas unique (deux joueurs peuvent
-  s'appeler "Thomas") ; seul `player_id` identifie un joueur. *Alternative :
-  imposer l'unicité du nom (409 Conflict si pris).*
-- **D2** — `/healthz` est placé **hors** du préfixe `/rps` car ce n'est pas
-  une ressource du jeu mais une sonde d'infrastructure. *Alternative : le
-  mettre sous `/rps/health` pour respecter la règle "tous les endpoints sous
-  /rps" à la lettre.*
-- **D3** — Une "game" = une manche unique et immédiate (pas de multi-manches
-  en V1), cf. §7.
-- **D4** — Statistiques calculées à la volée (agrégation SQL) plutôt que
+- **D1** — ✅ `name` du joueur est **unique** ; tentative d'enregistrement
+  avec un nom déjà pris → `409 Conflict`. Contrainte `UNIQUE` en base sur
+  `players.name`.
+- **D2** — ✅ `/healthz` reste hors du préfixe `/rps` (sonde d'infra, pas une
+  ressource du jeu).
+- **D3** — ✅ Une "game" = une manche unique et immédiate (pas de
+  multi-manches en V1), cf. §7.
+- **D4** — ✅ Statistiques calculées à la volée (agrégation SQL) plutôt que
   dénormalisées sur `players`.
+- **D5** — ✅ (ajout) L'API est versionnée dans le chemin : tous les
+  endpoints métier passent de `/rps/...` à `/rps/v1/...`. `/healthz` n'est
+  pas versionné (D2).
 
----
-
-**Merci de valider ce document (ou de m'indiquer les points à amender) avant
-que je démarre l'implémentation.**
+Ce document est approuvé. L'implémentation peut démarrer sur cette base.
