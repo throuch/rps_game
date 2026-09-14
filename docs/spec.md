@@ -1,7 +1,8 @@
 # Spécification — Service "Pierre-Feuille-Ciseaux"
 
 - **Statut** : 🟢 Approuvée (Product Owner) — cf. §9
-- **Version** : 0.2.0
+- **Version** : 0.2.1 (§6 mis à jour pour refléter l'arborescence livrée ;
+  aucune décision de fond changée)
 - **Auteur** : Claude (dev), sous la responsabilité de Thomas Rouch (tech lead / PO)
 
 Ce document est versionné et fait foi. Toute évolution du jeu ou de l'API
@@ -168,7 +169,7 @@ la liveness. Retourne `200 OK` `{"status": "ok"}`.
 - En local, la base tourne via `docker-compose.yml` (service `postgres:18`
   + volume nommé pour la persistance entre redémarrages).
 
-## 6. Arborescence du projet (proposée)
+## 6. Arborescence du projet
 
 ```
 pocorange/
@@ -176,33 +177,37 @@ pocorange/
 │   └── spec.md
 ├── src/
 │   └── rps/
-│       ├── main.py            # factory FastAPI, montage des routers
-│       ├── config.py          # Settings (pydantic-settings), Environment
+│       ├── main.py             # factory FastAPI, montage des routers
+│       ├── config.py           # Settings (pydantic-settings), Environment
 │       ├── api/                # boilerplate HTTP (FastAPI)
-│       │   ├── router.py      # monte /rps/v1 + /healthz
-│       │   ├── v1/
-│       │   │   ├── players.py
-│       │   │   └── games.py
-│       │   ├── health.py
-│       │   └── schemas.py     # modèles Pydantic requête/réponse
-│       ├── domain/             # métier pur, sans dépendance framework
-│       │   ├── rules.py       # Move, Result, resolve_round()
-│       │   └── services.py    # PlayerService, GameService
-│       └── db/                 # boilerplate persistance
-│           ├── base.py        # engine/session SQLAlchemy
-│           ├── models.py      # ORM Player, Game
-│           └── repository.py
+│       │   ├── router.py       # monte /rps/v1 + /healthz
+│       │   ├── deps.py         # injection des services (Depends)
+│       │   ├── schemas.py      # modèles Pydantic requête/réponse
+│       │   ├── health.py       # /healthz
+│       │   └── v1/
+│       │       ├── players.py
+│       │       └── games.py
+│       ├── domain/              # métier pur, sans dépendance framework
+│       │   ├── rules.py        # Move, Result, resolve_round(), random_move()
+│       │   ├── entities.py     # Player, Game, PlayerStats (dataclasses)
+│       │   ├── exceptions.py   # PlayerNotFoundError, ...
+│       │   ├── repositories.py # Protocols PlayerRepository / GameRepository
+│       │   └── services.py     # PlayerService, GameService
+│       └── db/                  # boilerplate persistance
+│           ├── base.py         # engine/session SQLAlchemy
+│           ├── models.py       # ORM PlayerModel, GameModel
+│           └── repository.py   # implémentation SQL des Protocols domain
 ├── alembic/
 │   ├── env.py
 │   └── versions/
 ├── alembic.ini
-├── tests/                      # livré : tests unitaires (domain/services, mocks)
-│   ├── conftest.py
+├── tests/                       # livré : tests unitaires (domain/services, mocks)
+│   ├── fakes.py                # FakePlayerRepository / FakeGameRepository
 │   ├── test_rules.py
 │   └── test_services.py
-├── docker-compose.yml          # postgres:18 pour le développement local
+├── docker-compose.yml           # postgres:18 pour le développement local
 ├── Dockerfile
-├── pyproject.toml               # dépendances + config ruff (géré par uv)
+├── pyproject.toml                # dépendances + config ruff/pytest (géré par uv)
 ├── .env.example
 ├── .gitignore
 └── README.md
