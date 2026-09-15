@@ -1,20 +1,28 @@
 # Spécification — Service "Pierre-Feuille-Ciseaux"
 
-- **Statut** : 🟢 Approuvée (Product Owner) — cf. §9
-- **Version** : 0.2.1 (§6 mis à jour pour refléter l'arborescence livrée ;
+- **Statut** : 🟢 Approuvée (Product Owner) — cf. §6
+- **Version** : 0.4.0 (extraction de "Modèle de données", "Persistance" et
+  "Arborescence du projet" vers docs/architecture.md, dédié au "comment" ;
   aucune décision de fond changée)
 - **Auteur** : Claude (dev), sous la responsabilité de Thomas Rouch (tech lead / PO)
 
-Ce document est versionné et fait foi. Toute évolution du jeu ou de l'API
-doit être reflétée ici et re-approuvée avant implémentation.
+Ce document décrit le "quoi" : le comportement attendu et le contrat
+technique du service — versionné, il fait foi, et toute évolution doit être
+reflétée ici et re-approuvée avant implémentation. Les choix
+d'implémentation ("comment") vivent séparément dans `docs/architecture.md`.
 
 ---
 
-## 1. Règles du jeu
+## 1. Fonctionnalités
+
+### Jouer une manche
+En tant que joueur enregistré, je veux soumettre un coup (pierre, feuille
+ou ciseaux) contre la maison, afin d'obtenir immédiatement le résultat de
+la manche.
 
 Un joueur enregistré affronte "la maison" (le serveur), qui joue un coup
 aléatoire à chaque manche. Il n'y a pas de mode joueur-contre-joueur en V1
-(cf. §7 Hors périmètre).
+(cf. §5 Hors périmètre).
 
 Coups possibles : `rock`, `paper`, `scissors`.
 
@@ -28,37 +36,51 @@ Résolution d'une manche (du point de vue du joueur) :
 | identique  | identique  | draw     |
 | sinon      | —          | loss     |
 
-Chaque appel à `/rps/play` constitue une **manche complète et autonome**
-(pas de notion de "partie en plusieurs manches" en V1) : le joueur soumet un
-coup, le serveur tire le sien, le résultat est calculé et persisté
-immédiatement. C'est la ressource "game" la plus simple qui satisfait le
-besoin (KISS) ; une notion de match en plusieurs manches pourra être ajoutée
-plus tard sans casser cette base (cf. §7).
+Chaque manche est **complète et autonome** (pas de notion de "partie en
+plusieurs manches" en V1) : le joueur soumet un coup, le serveur tire le
+sien, le résultat est calculé et persisté immédiatement. C'est la ressource
+"game" la plus simple qui satisfait le besoin (KISS) ; une notion de match
+en plusieurs manches pourra être ajoutée plus tard sans casser cette base
+(cf. §5).
 
-## 2. Modèle de données
+### S'enregistrer comme joueur
+En tant que nouveau joueur, je veux m'enregistrer avec un nom, afin de
+pouvoir ensuite jouer et suivre mes statistiques.
 
-### `players`
-| Colonne      | Type          | Contraintes                  |
-|--------------|---------------|-------------------------------|
-| id           | UUID          | PK, généré serveur            |
-| name         | VARCHAR(50)   | NOT NULL, **UNIQUE** (cf. décision D1) |
-| created_at   | TIMESTAMPTZ   | NOT NULL, défaut now()        |
+Le nom choisi doit être **unique** — une tentative d'enregistrement avec un
+nom déjà pris est refusée (cf. décision D1).
 
-### `games`
-| Colonne         | Type          | Contraintes                       |
-|-----------------|---------------|-------------------------------------|
-| id              | UUID          | PK, généré serveur                  |
-| player_id       | UUID          | FK -> players.id, NOT NULL          |
-| player_move     | VARCHAR(8)    | NOT NULL, enum rock/paper/scissors  |
-| opponent_move   | VARCHAR(8)    | NOT NULL, enum rock/paper/scissors  |
-| result          | VARCHAR(4)    | NOT NULL, enum win/loss/draw        |
-| created_at      | TIMESTAMPTZ   | NOT NULL, défaut now()              |
+La date d'inscription du joueur doit être persistée.
 
-Les statistiques d'un joueur (`wins`, `losses`, `draws`, `games_played`)
-sont **calculées à la lecture** par agrégation sur `games` (pas de colonne
-dénormalisée à maintenir) — plus simple et sans risque d'incohérence.
+### Consulter mes statistiques
+En tant que joueur, je veux consulter mes statistiques (parties jouées,
+victoires, défaites, égalités), afin de suivre ma progression.
 
-## 3. API — endpoints (préfixe `/rps`, versionné `v1`)
+Les statistiques reflètent l'ensemble des manches jouées par le joueur,
+calculées à la demande plutôt que stockées (cf. décision D4).
+
+### Consulter l'historique de mes manches
+En tant que joueur, je veux consulter la liste de mes manches passées, afin
+de revoir mon historique de jeu.
+
+Liste paginée (`limit` défaut 20, max 100 ; `offset` défaut 0).
+
+> ⚠️ **Écart trouvé pendant la réorg** : l'ordre de tri de cette liste
+> n'est précisé nulle part dans la version précédente du document. À
+> trancher explicitement — probablement le plus récent en premier — avant/à
+> la prochaine évolution de cette fonctionnalité, sauf si l'implémentation
+> actuelle a déjà tranché ce point sans que ce soit remonté ici.
+
+### Consulter le détail d'une manche
+En tant que joueur, je veux consulter le détail d'une manche précise, afin
+de revoir un résultat spécifique.
+
+### Hall of fame
+En tant que joueur, je veux consulter le classement des joueurs par taux de victoire, afin de comparer mes performances aux autres.
+Comportement attendu : liste des joueurs (nom, victoires, défaites, total, % de réussite), date d'inscription, triée par % décroissant, recalcul systématique.
+Cas limite : un joueur sans partie jouée apparaît dans le classement avec des statistiques nulles.
+
+## 2. Contrat technique
 
 Tous les endpoints métier sont sous `/rps/v1/...` (cf. décision D5 : la
 version majeure de l'API apparaît dans le chemin, ce qui permettra
@@ -68,7 +90,7 @@ Toutes les réponses sont en JSON. Les erreurs suivent le format standard
 FastAPI `{"detail": "..."}`.
 
 ### `POST /rps/v1/register`
-Enregistre un nouveau joueur. Le nom est **unique** (cf. décision D1).
+cf. Fonctionnalité "S'enregistrer comme joueur" (§1).
 
 Requête :
 ```json
@@ -83,7 +105,7 @@ Réponses :
 - `422 Unprocessable Entity` — nom absent/vide/trop long.
 
 ### `POST /rps/v1/play`
-Joue une manche pour un joueur existant.
+cf. Fonctionnalité "Jouer une manche" (§1).
 
 Requête :
 ```json
@@ -104,7 +126,7 @@ Réponses :
 - `422 Unprocessable Entity` — `move` absent ou hors énumération.
 
 ### `GET /rps/v1/players/{player_id}`
-Retourne le joueur et ses statistiques agrégées.
+cf. Fonctionnalité "Consulter mes statistiques" (§1).
 
 - `200 OK`
 ```json
@@ -118,8 +140,9 @@ Retourne le joueur et ses statistiques agrégées.
 - `404 Not Found`.
 
 ### `GET /rps/v1/players/{player_id}/games`
-Historique paginé des manches d'un joueur (query params `limit` défaut 20
-max 100, `offset` défaut 0).
+cf. Fonctionnalité "Consulter l'historique de mes manches" (§1).
+
+Query params `limit` défaut 20 max 100, `offset` défaut 0.
 
 - `200 OK`
 ```json
@@ -128,16 +151,23 @@ max 100, `offset` défaut 0).
 - `404 Not Found` si le joueur n'existe pas.
 
 ### `GET /rps/v1/games/{game_id}`
-Détail d'une manche.
+cf. Fonctionnalité "Consulter le détail d'une manche" (§1).
 
 - `200 OK` (même forme que la réponse de `/rps/v1/play`, avec `player_id`).
 - `404 Not Found`.
 
-### `GET /healthz` (hors `/rps`, décision D2 validée)
+### Hall of fame 
+cf. Fonctionnalités "Hall of Fame" (§1)
+GET /rps/hof → liste triée par pourcentage de victoire (arrondi) décroissant, champs : nom, victoires, défaites, total, pourcentage.
+
+### `GET /healthz`
+Hors `/rps` (décision D2 validée) — sonde d'infra, sans Fonctionnalité
+correspondante côté joueur.
+
 Vérification de disponibilité (liveness/readiness), sans dépendance DB pour
 la liveness. Retourne `200 OK` `{"status": "ok"}`.
 
-## 4. Environnements (DEV / QA / PROD)
+## 3. Environnements (DEV / QA / PROD)
 
 - Variable `APP_ENV` (`dev|qa|prod`), lue via `pydantic-settings`. Absence
   ou valeur invalide → échec au démarrage (fail-fast), aucune valeur par
@@ -155,70 +185,7 @@ la liveness. Retourne `200 OK` `{"status": "ok"}`.
   préciser dans ce document au moment d'un premier déploiement réel** (hors
   périmètre V1).
 
-## 5. Persistance
-
-- PostgreSQL 18 (image `postgres:18`), une base par environnement, aucun
-  partage de données.
-- API stateless : chaque requête porte les identifiants nécessaires
-  (`player_id`, `game_id`) ; aucun état de session en mémoire process.
-- Connexion via `DATABASE_URL` (variable d'environnement), jamais de secret
-  en dur.
-- ORM : SQLAlchemy 2.x (style déclaratif). Migrations : **Alembic**, dossier
-  `alembic/` à la racine, une migration initiale créant `players` et
-  `games`.
-- En local, la base tourne via `docker-compose.yml` (service `postgres:18`
-  + volume nommé pour la persistance entre redémarrages).
-
-## 6. Arborescence du projet
-
-```
-pocorange/
-├── docs/
-│   └── spec.md
-├── src/
-│   └── rps/
-│       ├── main.py             # factory FastAPI, montage des routers
-│       ├── config.py           # Settings (pydantic-settings), Environment
-│       ├── api/                # boilerplate HTTP (FastAPI)
-│       │   ├── router.py       # monte /rps/v1 + /healthz
-│       │   ├── deps.py         # injection des services (Depends)
-│       │   ├── schemas.py      # modèles Pydantic requête/réponse
-│       │   ├── health.py       # /healthz
-│       │   └── v1/
-│       │       ├── players.py
-│       │       └── games.py
-│       ├── domain/              # métier pur, sans dépendance framework
-│       │   ├── rules.py        # Move, Result, resolve_round(), random_move()
-│       │   ├── entities.py     # Player, Game, PlayerStats (dataclasses)
-│       │   ├── exceptions.py   # PlayerNotFoundError, ...
-│       │   ├── repositories.py # Protocols PlayerRepository / GameRepository
-│       │   └── services.py     # PlayerService, GameService
-│       └── db/                  # boilerplate persistance
-│           ├── base.py         # engine/session SQLAlchemy
-│           ├── models.py       # ORM PlayerModel, GameModel
-│           └── repository.py   # implémentation SQL des Protocols domain
-├── alembic/
-│   ├── env.py
-│   └── versions/
-├── alembic.ini
-├── tests/                       # livré : tests unitaires (domain/services, mocks)
-│   ├── fakes.py                # FakePlayerRepository / FakeGameRepository
-│   ├── test_rules.py
-│   └── test_services.py
-├── docker-compose.yml           # postgres:18 pour le développement local
-├── Dockerfile
-├── pyproject.toml                # dépendances + config ruff/pytest (géré par uv)
-├── .env.example
-├── .gitignore
-└── README.md
-```
-
-`domain/` isole les règles du jeu (testables sans FastAPI ni base de
-données) ; `api/` et `db/` concentrent le boilerplate technique. Principe
-KISS : pas de couche d'abstraction supplémentaire (pas de repository
-générique, pas de CQRS) tant que le besoin ne l'impose pas.
-
-## 7. Tests
+## 4. Tests
 
 - **Livrés** (`tests/`, pytest) : tests unitaires sur `domain/rules.py`
   (résolution des manches) et `domain/services.py` (logique métier, avec
@@ -229,7 +196,7 @@ générique, pas de CQRS) tant que le besoin ne l'impose pas.
 - **Validation go/no-go** : uniquement les tests de l'agent de validation
   fonctionnelle (externe à ce dépôt de tests).
 
-## 8. Hors périmètre V1 (extensions possibles futures)
+## 5. Hors périmètre V1 (extensions possibles futures)
 
 - Mode joueur-contre-joueur (matchmaking, deux vrais joueurs sur une même
   partie).
@@ -239,19 +206,20 @@ générique, pas de CQRS) tant que le besoin ne l'impose pas.
   s'identifier, pas de notion de compte sécurisé).
 - Manifestes Kubernetes, Terraform, pipeline CI/CD réel.
 
-## 9. Décisions validées (PO — 2026-09-14)
+## 6. Décisions validées (PO — 2026-09-14)
 
 - **D1** — ✅ `name` du joueur est **unique** ; tentative d'enregistrement
   avec un nom déjà pris → `409 Conflict`. Contrainte `UNIQUE` en base sur
-  `players.name`.
+  `players.name` (implémentation détaillée dans docs/architecture.md).
 - **D2** — ✅ `/healthz` reste hors du préfixe `/rps` (sonde d'infra, pas une
   ressource du jeu).
 - **D3** — ✅ Une "game" = une manche unique et immédiate (pas de
-  multi-manches en V1), cf. §7.
+  multi-manches en V1), cf. §1.
 - **D4** — ✅ Statistiques calculées à la volée (agrégation SQL) plutôt que
-  dénormalisées sur `players`.
+  dénormalisées sur `players` (implémentation détaillée dans
+  docs/architecture.md).
 - **D5** — ✅ (ajout) L'API est versionnée dans le chemin : tous les
   endpoints métier passent de `/rps/...` à `/rps/v1/...`. `/healthz` n'est
   pas versionné (D2).
 
-Ce document est approuvé. L'implémentation peut démarrer sur cette base.
+Dès que ce document est approuvé. L'implémentation peut démarrer sur cette base.
