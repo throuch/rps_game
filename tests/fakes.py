@@ -23,6 +23,9 @@ class FakePlayerRepository:
     def get_by_name(self, name: str) -> Player | None:
         return next((p for p in self._by_id.values() if p.name == name), None)
 
+    def list_all(self) -> list[Player]:
+        return list(self._by_id.values())
+
 
 class FakeGameRepository:
     def __init__(self) -> None:
@@ -61,3 +64,7 @@ class FakeGameRepository:
         losses = sum(1 for g in games if g.result is Result.LOSS)
         draws = sum(1 for g in games if g.result is Result.DRAW)
         return PlayerStats(games_played=len(games), wins=wins, losses=losses, draws=draws)
+
+    def stats_for_all_players(self) -> dict[uuid.UUID, PlayerStats]:
+        player_ids = {g.player_id for g in self._games.values()}
+        return {player_id: self.stats_for_player(player_id) for player_id in player_ids}

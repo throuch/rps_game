@@ -47,6 +47,10 @@ class SqlPlayerRepository:
         model = self._session.scalar(select(PlayerModel).where(PlayerModel.name == name))
         return _to_player(model) if model else None
 
+    def list_all(self) -> list[Player]:
+        models = self._session.scalars(select(PlayerModel))
+        return [_to_player(model) for model in models]
+
 
 class SqlGameRepository:
     def __init__(self, session: Session) -> None:
@@ -97,3 +101,22 @@ class SqlGameRepository:
         return PlayerStats(
             games_played=wins + losses + draws, wins=wins, losses=losses, draws=draws
         )
+
+    def stats_for_all_players(self) -> dict[uuid.UUID, PlayerStats]:
+        rows = self._session.execute(
+            select(GameModel.player_id, GameModel.result, func.count()).group_by(
+                GameModel.player_id, GameModel.result
+            )
+        ).all()
+        counts: dict[uuid.UUID, dict[str, int]] = {}
+        for player_id, result, count in rows:
+            counts.setdefault(player_id, {})[result] = count
+        return {
+            player_id: PlayerStats(
+                games_played=sum(result_counts.values()),
+                wins=result_counts.get(Result.WIN.value, 0),
+                losses=result_counts.get(Result.LOSS.value, 0),
+                draws=result_counts.get(Result.DRAW.value, 0),
+            )
+            for player_id, result_counts in counts.items()
+        }

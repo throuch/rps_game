@@ -28,3 +28,13 @@ class PlayerStats:
     wins: int
     losses: int
     draws: int
+
+
+@dataclass(frozen=True)
+class HallOfFameEntry:
+    name: str
+    wins: int
+    losses: int
+    total: int
+    win_rate: int
+    created_at: datetime

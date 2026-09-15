@@ -47,3 +47,16 @@ class GameDetailResponse(GameResponse):
 class GameListResponse(BaseModel):
     items: list[GameResponse]
     total: int
+
+
+class HallOfFameEntryResponse(BaseModel):
+    name: str
+    wins: int
+    losses: int
+    total: int
+    win_rate: int
+    created_at: datetime
+
+
+class HallOfFameResponse(BaseModel):
+    items: list[HallOfFameEntryResponse]
