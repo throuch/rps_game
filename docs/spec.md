@@ -1,9 +1,9 @@
 # Spécification — Service "Pierre-Feuille-Ciseaux"
 
 - **Statut** : 🟢 Approuvée (Product Owner) — cf. §6
-- **Version** : 0.4.0 (extraction de "Modèle de données", "Persistance" et
-  "Arborescence du projet" vers docs/architecture.md, dédié au "comment" ;
-  aucune décision de fond changée)
+- **Version** : 0.5.0 (contrat technique du hall of fame corrigé : préfixe
+  `/rps/v1/` — cohérent avec D5, oubli de rédaction — et ajout du champ
+  `created_at`, aligné sur la Fonctionnalité §1 qui le mentionnait déjà)
 - **Auteur** : Claude (dev), sous la responsabilité de Thomas Rouch (tech lead / PO)
 
 Ce document décrit le "quoi" : le comportement attendu et le contrat
@@ -156,9 +156,27 @@ cf. Fonctionnalité "Consulter le détail d'une manche" (§1).
 - `200 OK` (même forme que la réponse de `/rps/v1/play`, avec `player_id`).
 - `404 Not Found`.
 
-### Hall of fame 
-cf. Fonctionnalités "Hall of Fame" (§1)
-GET /rps/hof → liste triée par pourcentage de victoire (arrondi) décroissant, champs : nom, victoires, défaites, total, pourcentage.
+### `GET /rps/v1/hof`
+cf. Fonctionnalité "Hall of fame" (§1).
+
+Liste triée par pourcentage de victoire (arrondi) décroissant, champs : nom,
+victoires, défaites, total, pourcentage, date d'inscription.
+
+- `200 OK`
+```json
+{
+  "items": [
+    {
+      "name": "Thomas",
+      "wins": 5,
+      "losses": 4,
+      "total": 12,
+      "win_rate": 42,
+      "created_at": "2026-09-14T10:00:00Z"
+    }
+  ]
+}
+```
 
 ### `GET /healthz`
 Hors `/rps` (décision D2 validée) — sonde d'infra, sans Fonctionnalité
