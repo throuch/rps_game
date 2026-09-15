@@ -1,9 +1,8 @@
 # Spécification — Service "Pierre-Feuille-Ciseaux"
 
 - **Statut** : 🟢 Approuvée (Product Owner) — cf. §6
-- **Version** : 0.5.0 (contrat technique du hall of fame corrigé : préfixe
-  `/rps/v1/` — cohérent avec D5, oubli de rédaction — et ajout du champ
-  `created_at`, aligné sur la Fonctionnalité §1 qui le mentionnait déjà)
+- **Version** : 0.5.0 (contrat technique du hall of fame : préfixe
+  `/rps/v1/` et champ `created_at`)
 - **Auteur** : Claude (dev), sous la responsabilité de Thomas Rouch (tech lead / PO)
 
 Ce document décrit le "quoi" : le comportement attendu et le contrat
